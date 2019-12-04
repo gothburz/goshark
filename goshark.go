@@ -1,7 +1,10 @@
 package main
 
 import (
+	"bytes"
+	"fmt"
 	"gopkg.in/alecthomas/kingpin.v2"
+	"io"
 	"log"
 	"os"
 	"os/exec"
@@ -46,18 +49,29 @@ func main() {
 	case getURICommand.FullCommand():
 		if uriPCAP != nil {
 			pcapPath := getPCAPPath(*uriPCAP)
-			tshark := exec.Command("tshark", "-r"+pcapPath,
+			tshark := exec.Command("tshark",
+				"-r"+pcapPath,
 				"-Y", "(http.request) && (tcp.stream)",
 				"-T", "fields",
 				"-e", "tcp.stream",
 				"-e", "http.request.full_uri",
 				"-E", "separator=/s")
-			tshark.Stdout = os.Stdout
-			tshark.Stderr = os.Stderr
-			err := tshark.Run()
-			if err != nil {
-				log.Fatalf("goshark failed with %s\n", err)
-			}
+			awk := exec.Command("awk", "BEGIN { OFS = \"\\n\"; ORS = \"\\n\\n\"} "+
+				"{$1=\"tcp.stream eq \"$1;$2=\"http.request.full_uri=\" $2; print}")
+
+			r, w := io.Pipe()
+			tshark.Stdout = w
+			awk.Stdin = r
+
+			var b2 bytes.Buffer
+			awk.Stdout = &b2
+
+			tshark.Start()
+			awk.Start()
+			tshark.Wait()
+			w.Close()
+			awk.Wait()
+			io.Copy(os.Stdout, &b2)
 		}
 	// GET HOST CASE
 	case getHostCommand.FullCommand():
@@ -75,6 +89,20 @@ func main() {
 			if err != nil {
 				log.Fatalf("goshark failed with %s\n", err)
 			}
+		}
+	case getHostCommand.FullCommand():
+		if hostPCAP != nil {
+			pcapPath := getPCAPPath(*hostPCAP)
+			tshark, err := exec.Command("tshark", "-r"+pcapPath,
+				"-Y", "(http.request) && (tcp.stream)",
+				"-T", "fields",
+				"-e", "tcp.stream",
+				"-e", "http.host",
+				"-E", "separator=/s").Output()
+			if err != nil {
+				fmt.Printf("%s", err)
+			}
+			fmt.Printf("%s", tshark)
 		}
 	// GET USER-AGENT CASE
 	case getUserAgentCommand.FullCommand():
