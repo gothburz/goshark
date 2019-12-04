@@ -51,13 +51,14 @@ func main() {
 			pcapPath := getPCAPPath(*uriPCAP)
 			tshark := exec.Command("tshark",
 				"-r"+pcapPath,
-				"-Y", "(http.request) && (tcp.stream)",
+				"-Y", "(http.request) && (tcp.stream) && (frame.number)",
 				"-T", "fields",
+				"-e", "frame.number",
 				"-e", "tcp.stream",
 				"-e", "http.request.full_uri",
 				"-E", "separator=/s")
 			awk := exec.Command("awk", "BEGIN { OFS = \"\\n\"; ORS = \"\\n\\n\"} "+
-				"{$1=\"tcp.stream eq \"$1;$2=\"http.request.full_uri=\" $2; print}")
+				"{ $1 = \"frame.number == \" $1; $2 = \"tcp.stream == \" $2; $3 = \"http.request.full_uri == \" \"\\x22\"$3\"\\x22\"; print }")
 
 			r, w := io.Pipe()
 			tshark.Stdout = w
