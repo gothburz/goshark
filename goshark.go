@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"fmt"
+
+	//"fmt"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"io"
 	"log"
@@ -18,8 +20,9 @@ var (
 	getCommand = app.Command("get", "Get something from a PCAP.")
 
 	// get URI
-	getURICommand = getCommand.Command("uri", "URI Command")
-	uriPCAP       = getURICommand.Arg("PCAP File", "PCAP to extract URI(s) from.").Required().String()
+	getURICommand       = getCommand.Command("uri", "URI Command")
+	getUriPCAP          = getURICommand.Arg("PCAP File", "PCAP to extract URI(s) from.").Required().String()
+	getURIReqMethodFlag = getURICommand.Flag("method", "Returns HTTP Method.").Bool()
 
 	// get HOST
 	getHostCommand = getCommand.Command("host", "HOST Command")
@@ -47,18 +50,73 @@ func main() {
 	switch kingpin.MustParse(app.Parse(os.Args[1:])) {
 	// GET URI CASE
 	case getURICommand.FullCommand():
-		if uriPCAP != nil {
-			pcapPath := getPCAPPath(*uriPCAP)
-			tshark := exec.Command("tshark",
-				"-r"+pcapPath,
+		if getUriPCAP != nil {
+			if *getURIReqMethodFlag == true {
+				tshark := exec.Command("tshark",
+					"-r"+pcapPath,
+					"-Y", "(http.request) && (http.request.method) && (tcp.stream) && (frame.number)",
+					"-T", "fields",
+					"-e", "http.request.method",
+					"-e", "http.request.full_uri",
+					"-E", "separator=/s")
+				awk := exec.Command("awk", "BEGIN { OFS = \"\\\n\"; ORS = \"\\n\\n\"} "+
+					"{$1 = \"http.request.method == \" $1; "+
+					"$2 = \"http.request.full_uri == \" \"\\x22\"$2\"\\x22\"; print }")
+
+				r, w := io.Pipe()
+				tshark.Stdout = w
+				awk.Stdin = r
+
+				var b2 bytes.Buffer
+				awk.Stdout = &b2
+
+				tshark.Start()
+				awk.Start()
+				tshark.Wait()
+				w.Close()
+				awk.Wait()
+				io.Copy(os.Stdout, &b2)
+			} else {
+				tshark := exec.Command("tshark",
+					"-r"+pcapPath,
+					"-Y", "(http.request) && (http.request.method) && (tcp.stream) && (frame.number)",
+					"-T", "fields",
+					"-e", "http.request.full_uri",
+					"-E", "separator=/s")
+				awk := exec.Command("awk", "BEGIN { OFS = \"\\\n\"; ORS = \"\\n\\n\"} "+
+					"{$1 = \"http.request.full_uri == \" \"\\x22\"$1\"\\x22\"; print }")
+
+				r, w := io.Pipe()
+				tshark.Stdout = w
+				awk.Stdin = r
+
+				var b2 bytes.Buffer
+				awk.Stdout = &b2
+
+				tshark.Start()
+				awk.Start()
+				tshark.Wait()
+				w.Close()
+				awk.Wait()
+				io.Copy(os.Stdout, &b2)
+			}
+		}
+	// GET HOST CASE
+	case getHostCommand.FullCommand():
+		if hostPCAP != nil {
+			pcapPath := getPCAPPath(*hostPCAP)
+			tshark := exec.Command("tshark", "-r"+pcapPath,
 				"-Y", "(http.request) && (tcp.stream) && (frame.number)",
 				"-T", "fields",
 				"-e", "frame.number",
 				"-e", "tcp.stream",
-				"-e", "http.request.full_uri",
+				"-e", "http.host",
 				"-E", "separator=/s")
-			awk := exec.Command("awk", "BEGIN { OFS = \"\\n\"; ORS = \"\\n\\n\"} "+
-				"{ $1 = \"frame.number == \" $1; $2 = \"tcp.stream == \" $2; $3 = \"http.request.full_uri == \" \"\\x22\"$3\"\\x22\"; print }")
+
+			awk := exec.Command("awk", "BEGIN { OFS = \"\\,\"} "+
+				"{ $1 = \"frame.number==\" $1; "+
+				"  $2 = \"tcp.stream==\" $2; "+
+				"  $1 = \"http.host==\" \"\\x22\"$1\"\\x22\"; print }")
 
 			r, w := io.Pipe()
 			tshark.Stdout = w
@@ -74,37 +132,7 @@ func main() {
 			awk.Wait()
 			io.Copy(os.Stdout, &b2)
 		}
-	// GET HOST CASE
-	case getHostCommand.FullCommand():
-		if hostPCAP != nil {
-			pcapPath := getPCAPPath(*hostPCAP)
-			tshark := exec.Command("tshark", "-r"+pcapPath,
-				"-Y", "(http.request) && (tcp.stream)",
-				"-T", "fields",
-				"-e", "tcp.stream",
-				"-e", "http.host",
-				"-E", "separator=/s")
-			tshark.Stdout = os.Stdout
-			tshark.Stderr = os.Stderr
-			err := tshark.Run()
-			if err != nil {
-				log.Fatalf("goshark failed with %s\n", err)
-			}
-		}
-	case getHostCommand.FullCommand():
-		if hostPCAP != nil {
-			pcapPath := getPCAPPath(*hostPCAP)
-			tshark, err := exec.Command("tshark", "-r"+pcapPath,
-				"-Y", "(http.request) && (tcp.stream)",
-				"-T", "fields",
-				"-e", "tcp.stream",
-				"-e", "http.host",
-				"-E", "separator=/s").Output()
-			if err != nil {
-				fmt.Printf("%s", err)
-			}
-			fmt.Printf("%s", tshark)
-		}
+
 	// GET USER-AGENT CASE
 	case getUserAgentCommand.FullCommand():
 		if userAgentPCAP != nil {
@@ -112,15 +140,25 @@ func main() {
 			tshark := exec.Command("tshark", "-r"+pcapPath,
 				"-Y", "(http.request) && (tcp.stream)",
 				"-T", "fields",
+				"-e", "frame.number",
 				"-e", "tcp.stream",
 				"-e", "http.user_agent",
 				"-E", "separator=/s")
-			tshark.Stdout = os.Stdout
-			tshark.Stderr = os.Stderr
-			err := tshark.Run()
-			if err != nil {
-				log.Fatalf("goshark failed with %s\n", err)
-			}
+			awk := exec.Command("awk", "{$1 = \"http.user_agent == \" \"\\x22\"$1\"\\x22\"; print }")
+
+			r, w := io.Pipe()
+			tshark.Stdout = w
+			awk.Stdin = r
+
+			var b2 bytes.Buffer
+			awk.Stdout = &b2
+
+			tshark.Start()
+			awk.Start()
+			tshark.Wait()
+			w.Close()
+			awk.Wait()
+			io.Copy(os.Stdout, &b2)
 		}
 	// GET URI PARAMETERS CASE
 	case getURIParamsCommand.FullCommand():
