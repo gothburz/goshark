@@ -2,7 +2,6 @@ package main
 
 import (
 	"bytes"
-	"fmt"
 
 	//"fmt"
 	"gopkg.in/alecthomas/kingpin.v2"
@@ -18,9 +17,17 @@ var (
 	app = kingpin.New("goshark", "golang pcap manipulation application.")
 
 	getCommand = app.Command("get", "Get something from a PCAP.")
+	/*
+				HTTP Protocol
+
+		        This sub-command gets HTTP protocol specific data:
+					$ ./goshark get http <uri|host|user-agent|uri-params> [<flags>] <PCAP File>
+
+	*/
+	httpSubCommand = getCommand.Command("http", "HTTP Protocol.")
 
 	// get URI
-	getURICommand       = getCommand.Command("uri", "URI Command")
+	getURICommand       = httpSubCommand.Command("uri", "URI Command")
 	getUriPCAP          = getURICommand.Arg("PCAP File", "PCAP to extract URI(s) from.").Required().String()
 	getURIReqMethodFlag = getURICommand.Flag("method", "Returns HTTP Method.").Bool()
 
@@ -51,6 +58,7 @@ func main() {
 	// GET URI CASE
 	case getURICommand.FullCommand():
 		if getUriPCAP != nil {
+			pcapPath := getPCAPPath(*getUriPCAP)
 			if *getURIReqMethodFlag == true {
 				tshark := exec.Command("tshark",
 					"-r"+pcapPath,
@@ -83,7 +91,7 @@ func main() {
 					"-T", "fields",
 					"-e", "http.request.full_uri",
 					"-E", "separator=/s")
-				awk := exec.Command("awk", "BEGIN { OFS = \"\\\n\"; ORS = \"\\n\\n\"} "+
+				awk := exec.Command("awk", "BEGIN { OFS = \"\\n\"; ORS = \"\\n\"} "+
 					"{$1 = \"http.request.full_uri == \" \"\\x22\"$1\"\\x22\"; print }")
 
 				r, w := io.Pipe()
