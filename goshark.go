@@ -16,20 +16,22 @@ var (
 	// COMMAND-LINE ARGUMENTS
 	app = kingpin.New("goshark", "golang pcap manipulation application.")
 
-	getCommand = app.Command("get", "Get something from a PCAP.")
+	getCommand    = app.Command("get", "Get something from a PCAP.")
+	exportCommand = app.Command("export", "Export something from a PCAP.")
 	/*
-				HTTP Protocol
-
-		        This sub-command gets HTTP protocol specific data:
-					$ ./goshark get http <uri|host|user-agent|uri-params> [<flags>] <PCAP File>
-
+		HTTP Protocol Sub-Commands
 	*/
-	httpSubCommand = getCommand.Command("http", "HTTP Protocol.")
+	getHTTPSubCommand    = getCommand.Command("http", "HTTP Protocol.")
+	exportHTTPSubCommand = exportCommand.Command("http", "HTTP Protocol.")
 
 	// get URI
-	getURICommand       = httpSubCommand.Command("uri", "URI Command")
+	getURICommand       = getHTTPSubCommand.Command("uri", "URI Command")
 	getUriPCAP          = getURICommand.Arg("PCAP File", "PCAP to extract URI(s) from.").Required().String()
 	getURIReqMethodFlag = getURICommand.Flag("method", "Returns HTTP Method.").Bool()
+
+	// export HTTP objects
+	exportHTTPObjectsPCAP = exportHTTPSubCommand.Arg("PCAP File", "PCAP to export Objects from.").Required().String()
+	exportDir             = exportHTTPSubCommand.Arg("Export Directory", "Directory to export HTTP objects to.").Required().String()
 
 	// get HOST
 	getHostCommand = getCommand.Command("host", "HOST Command")
@@ -140,7 +142,6 @@ func main() {
 			awk.Wait()
 			io.Copy(os.Stdout, &b2)
 		}
-
 	// GET USER-AGENT CASE
 	case getUserAgentCommand.FullCommand():
 		if userAgentPCAP != nil {
@@ -178,6 +179,20 @@ func main() {
 				"-e", "tcp.stream",
 				"-e", "http.request.uri.query.parameter",
 				"-E", "separator=/s")
+			tshark.Stdout = os.Stdout
+			tshark.Stderr = os.Stderr
+			err := tshark.Run()
+			if err != nil {
+				log.Fatalf("goshark failed with %s\n", err)
+			}
+		}
+
+	// EXPORT HTTP OBJECTS
+	case exportHTTPSubCommand.FullCommand():
+		if exportHTTPObjectsPCAP != nil {
+			pcapPath := getPCAPPath(*exportHTTPObjectsPCAP)
+			tshark := exec.Command("tshark", "-r"+pcapPath,
+				"--export-objects", "http,"+*exportDir)
 			tshark.Stdout = os.Stdout
 			tshark.Stderr = os.Stderr
 			err := tshark.Run()
