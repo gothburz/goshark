@@ -15,14 +15,10 @@ var (
 	app = kingpin.New("goshark", "golang pcap manipulation application.")
 	/*
 
-		SUB-COMMANDS
+		GET COMMAND
 
 	*/
-	getCommand = app.Command("get", "get command")
-	rmCommand  = app.Command("rm", "rm command")
-	/*
-		HTTP Protocol Sub-Commands
-	*/
+	getCommand        = app.Command("get", "get command")
 	getHTTPSubCommand = getCommand.Command("http", "HTTP Protocol.")
 
 	// get URI
@@ -46,6 +42,16 @@ var (
 	// get URI PARAMS
 	getURIParamsCommand = getCommand.Command("uri-params", "URI PARAMETER Command")
 	uriParamsPCAP       = getURIParamsCommand.Arg("PCAP File", "PCAP to extract URI Parameter(s) from.").Required().String()
+
+	/*
+
+		REMOVE COMMANDS
+
+	*/
+	rmCommand = app.Command("rm", "rm command")
+
+	rmVLAN     = rmCommand.Command("vlan", "rm vlan")
+	rmVlanPCAP = rmVLAN.Arg("PCAP File", "PCAP file to remove VLAN tags from.").Required().String()
 )
 
 func getPCAPPath(relativePath string) (pcapPath string) {
@@ -188,7 +194,6 @@ func main() {
 				log.Fatalf("goshark failed with %s\n", err)
 			}
 		}
-
 	// EXPORT HTTP OBJECTS
 	case exportHTTPObjects.FullCommand():
 		if exportHTTPObjectsPCAP != nil {
@@ -201,6 +206,22 @@ func main() {
 			if err != nil {
 				log.Fatalf("goshark failed with %s\n", err)
 			}
+		}
+	// RM VLAN
+	case rmVLAN.FullCommand():
+		pcapPath := getPCAPPath(*rmVlanPCAP)
+		var ext = filepath.Ext(pcapPath)
+		var name = pcapPath[0 : len(pcapPath)-len(ext)]
+		var basePath = filepath.Base(name)
+		var pcapNoVLAN = basePath + "-no-vlan.pcap"
+		tcprewrite := exec.Command("tcprewrite", "--enet-vlan=del",
+			"--infile="+pcapPath,
+			"--outfile="+pcapNoVLAN)
+		tcprewrite.Stdout = os.Stdout
+		tcprewrite.Stderr = os.Stderr
+		err := tcprewrite.Run()
+		if err != nil {
+			log.Fatalf("goshark failed with %s\n", err)
 		}
 	}
 }
