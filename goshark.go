@@ -55,7 +55,7 @@ var (
 
 	/*
 
-		REMOVE COMMANDS
+		SET COMMANDS
 
 	*/
 	setCommand = app.Command("set", "set command")
@@ -234,7 +234,7 @@ func main() {
 		if err != nil {
 			log.Fatalf("goshark failed with %s\n", err)
 		}
-		// RM VLAN
+	// set MTU
 	case setMTU.FullCommand():
 		pcapPath := getPCAPPath(*setMtuPCAP)
 		var ext = filepath.Ext(pcapPath)
