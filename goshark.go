@@ -52,6 +52,17 @@ var (
 
 	rmVLAN     = rmCommand.Command("vlan", "rm vlan")
 	rmVlanPCAP = rmVLAN.Arg("PCAP File", "PCAP file to remove VLAN tags from.").Required().String()
+
+	/*
+
+		REMOVE COMMANDS
+
+	*/
+	setCommand = app.Command("set", "set command")
+
+	setMTU      = setCommand.Command("mtu", "set mtu")
+	setMtuValue = setMTU.Arg("MTU Value", "Value to set MTU to.").Required().String()
+	setMtuPCAP  = setMTU.Arg("PCAP File", "PCAP to set MTU in.").Required().String()
 )
 
 func getPCAPPath(relativePath string) (pcapPath string) {
@@ -217,6 +228,24 @@ func main() {
 		tcprewrite := exec.Command("tcprewrite", "--enet-vlan=del",
 			"--infile="+pcapPath,
 			"--outfile="+pcapNoVLAN)
+		tcprewrite.Stdout = os.Stdout
+		tcprewrite.Stderr = os.Stderr
+		err := tcprewrite.Run()
+		if err != nil {
+			log.Fatalf("goshark failed with %s\n", err)
+		}
+		// RM VLAN
+	case setMTU.FullCommand():
+		pcapPath := getPCAPPath(*setMtuPCAP)
+		var ext = filepath.Ext(pcapPath)
+		var name = pcapPath[0 : len(pcapPath)-len(ext)]
+		var basePath = filepath.Base(name)
+		var pcapNewMTU = basePath + "-new-mtu.pcap"
+		tcprewrite := exec.Command("tcprewrite",
+			"--mtu="+*setMtuValue,
+			"--mtu-trunc",
+			"--infile="+pcapPath,
+			"--outfile="+pcapNewMTU)
 		tcprewrite.Stdout = os.Stdout
 		tcprewrite.Stderr = os.Stderr
 		err := tcprewrite.Run()
