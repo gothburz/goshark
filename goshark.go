@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-
-	//"fmt"
 	"gopkg.in/alecthomas/kingpin.v2"
 	"io"
 	"log"
@@ -15,23 +13,27 @@ import (
 var (
 	// COMMAND-LINE ARGUMENTS
 	app = kingpin.New("goshark", "golang pcap manipulation application.")
+	/*
 
-	getCommand    = app.Command("get", "Get something from a PCAP.")
-	exportCommand = app.Command("export", "Export something from a PCAP.")
+		SUB-COMMANDS
+
+	*/
+	getCommand = app.Command("get", "get command")
+	rmCommand  = app.Command("rm", "rm command")
 	/*
 		HTTP Protocol Sub-Commands
 	*/
-	getHTTPSubCommand    = getCommand.Command("http", "HTTP Protocol.")
-	exportHTTPSubCommand = exportCommand.Command("http", "HTTP Protocol.")
+	getHTTPSubCommand = getCommand.Command("http", "HTTP Protocol.")
 
 	// get URI
 	getURICommand       = getHTTPSubCommand.Command("uri", "URI Command")
 	getUriPCAP          = getURICommand.Arg("PCAP File", "PCAP to extract URI(s) from.").Required().String()
 	getURIReqMethodFlag = getURICommand.Flag("method", "Returns HTTP Method.").Bool()
 
-	// export HTTP objects
-	exportHTTPObjectsPCAP = exportHTTPSubCommand.Arg("PCAP File", "PCAP to export Objects from.").Required().String()
-	exportDir             = exportHTTPSubCommand.Arg("Export Directory", "Directory to export HTTP objects to.").Required().String()
+	// get HTTP objects
+	exportHTTPObjects     = getHTTPSubCommand.Command("objects", "Export HTTP Objects.")
+	exportHTTPObjectsPCAP = exportHTTPObjects.Arg("PCAP File", "PCAP to export Objects from.").Required().String()
+	exportDir             = exportHTTPObjects.Arg("Export Directory", "Directory to export HTTP objects to.").Required().String()
 
 	// get HOST
 	getHostCommand = getCommand.Command("host", "HOST Command")
@@ -188,7 +190,7 @@ func main() {
 		}
 
 	// EXPORT HTTP OBJECTS
-	case exportHTTPSubCommand.FullCommand():
+	case exportHTTPObjects.FullCommand():
 		if exportHTTPObjectsPCAP != nil {
 			pcapPath := getPCAPPath(*exportHTTPObjectsPCAP)
 			tshark := exec.Command("tshark", "-r"+pcapPath,
