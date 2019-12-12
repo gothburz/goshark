@@ -309,16 +309,16 @@ func main() {
 				var streamNumStr = strconv.Itoa(val)
 				var streamPCAP = basePath + "-tcp-s" + streamNumStr + ".pcap"
 				log.Println("Processing stream "+streamNumStr, "to "+streamPCAP)
-				//tshark := exec.Command("tshark",
-				//	"-r", pcapPath,
-				//	"-w", streamPCAP,
-				//	"-Y", "tcp.stream==" + streamNumStr)
-				//tshark.Stdout = os.Stdout
-				//tshark.Stderr = os.Stderr
-				//err := tshark.Run()
-				//if err != nil {
-				//	log.Fatalf("goshark failed with %s\n", err)
-				//}
+				tshark := exec.Command("tshark",
+					"-r", pcapPath,
+					"-w", streamPCAP,
+					"-Y", "tcp.stream=="+streamNumStr)
+				tshark.Stdout = os.Stdout
+				tshark.Stderr = os.Stderr
+				err := tshark.Run()
+				if err != nil {
+					log.Fatalf("goshark failed with %s\n", err)
+				}
 			}
 		}
 	}
