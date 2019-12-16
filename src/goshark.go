@@ -335,21 +335,5 @@ func main() {
 				}
 			}
 		}
-		//if *getSingleTCPStream != nil {
-		//	var ext = filepath.Ext(pcapPath)
-		//	var name = pcapPath[0 : len(pcapPath)-len(ext)]
-		//	var basePath = filepath.Base(name)
-		//	var streamString = strconv.Itoa(*getSingleTCPStream)
-		//	var streamPCAP = basePath + "-tcp-s" + streamString + ".pcap"
-		//	tshark := exec.Command("tshark",
-		//		"-r", pcapPath,
-		//		"-w", streamPCAP,
-		//		"-Y", "tcp.stream==" + streamString)
-		//	tshark.Stdout = os.Stdout
-		//	tshark.Stderr = os.Stderr
-		//	err := tshark.Run()
-		//	if err != nil {
-		//		log.Fatalf("goshark failed with %s\n", err)
-		//	}
 	}
 }
