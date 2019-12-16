@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"unique"
+	//"reflect"
 )
 
 var (
@@ -19,7 +20,9 @@ var (
 	/*
 
 		GET COMMAND
-
+			- SUB-COMMANDS
+				- http
+				- tcp
 	*/
 	getCommand        = app.Command("get", "get command")
 	getHTTPSubCommand = getCommand.Command("http", "HTTP Protocol.")
@@ -49,6 +52,7 @@ var (
 
 	// get TCP Streams
 	getTCPStreamsCommand = getTCPSubCommand.Command("stream", "Stream Command")
+	getStreamValue       = getTCPStreamsCommand.Arg("stream value", "Passs <all> for all TCP streams or specify a single stream with <int>.").Required().String()
 	streamPCAP           = getTCPStreamsCommand.Arg("PCAP file", "PCAP to get TCP Stream(s) from.").Required().String()
 
 	/*
@@ -79,19 +83,6 @@ func getPCAPPath(relativePath string) (pcapPath string) {
 		log.Fatal(err)
 	}
 	return pcapPath
-}
-
-func captureStdout() string {
-	old := os.Stdout
-	r, w, _ := os.Pipe()
-	os.Stdout = w
-
-	w.Close()
-	os.Stdout = old
-
-	var buf bytes.Buffer
-	io.Copy(&buf, r)
-	return buf.String()
 }
 
 func main() {
@@ -279,47 +270,86 @@ func main() {
 	case getTCPStreamsCommand.FullCommand():
 		if exportHTTPObjectsPCAP != nil {
 			pcapPath := getPCAPPath(*streamPCAP)
-			tshark, err := exec.Command("tshark",
-				"-r"+pcapPath,
-				"-Y", "(tcp.stream)",
-				"-T", "fields",
-				"-e", "tcp.stream").Output()
-			if err != nil {
-				log.Fatal(err)
-			}
-			// MAKE SLICE OF TSHARK RETURN BYTES
-			slice := make([]byte, 1, 1+len(tshark))
-			slice[0] = byte(len(tshark))
-			slice = append(slice, tshark...)
-
-			// ADD PACKET STREAM NUMBERS TO packetSlice
-			var packetSlice []int
-			for i := 0; i < len(slice); i++ {
-				if slice[i] != 10 {
-					int, _ := strconv.Atoi(string(slice[i]))
-					packetSlice = append(packetSlice, int)
-				}
-			}
-			// ADD UNIQUE STREAMS TO SLICE
-			uniqueStreams := unique.Ints(packetSlice)
 			var ext = filepath.Ext(pcapPath)
 			var name = pcapPath[0 : len(pcapPath)-len(ext)]
 			var basePath = filepath.Base(name)
-			for _, val := range uniqueStreams {
-				var streamNumStr = strconv.Itoa(val)
-				var streamPCAP = basePath + "-tcp-s" + streamNumStr + ".pcap"
-				log.Println("Processing stream "+streamNumStr, "to "+streamPCAP)
-				tshark := exec.Command("tshark",
-					"-r", pcapPath,
-					"-w", streamPCAP,
-					"-Y", "tcp.stream=="+streamNumStr)
-				tshark.Stdout = os.Stdout
-				tshark.Stderr = os.Stderr
-				err := tshark.Run()
+			if *getStreamValue == "all" {
+				tshark, err := exec.Command("tshark",
+					"-r"+pcapPath,
+					"-Y", "(tcp.stream)",
+					"-T", "fields",
+					"-e", "tcp.stream").Output()
 				if err != nil {
-					log.Fatalf("goshark failed with %s\n", err)
+					log.Fatal(err)
+				}
+				// MAKE SLICE OF TSHARK RETURN BYTES
+				slice := make([]byte, 1, 1+len(tshark))
+				slice[0] = byte(len(tshark))
+				slice = append(slice, tshark...)
+
+				// ADD PACKET STREAM NUMBERS TO packetSlice
+				var packetSlice []int
+				for i := 0; i < len(slice); i++ {
+					if slice[i] != 10 {
+						int, _ := strconv.Atoi(string(slice[i]))
+						packetSlice = append(packetSlice, int)
+					}
+				}
+				// ADD UNIQUE STREAMS TO SLICE
+				uniqueStreams := unique.Ints(packetSlice)
+				for _, val := range uniqueStreams {
+					var streamNumStr = strconv.Itoa(val)
+					var streamPCAP = basePath + "-tcp-s" + streamNumStr + ".pcap"
+					log.Println("Processing stream "+streamNumStr, "to "+streamPCAP)
+					tshark := exec.Command("tshark",
+						"-r", pcapPath,
+						"-w", streamPCAP,
+						"-Y", "tcp.stream=="+streamNumStr)
+					tshark.Stdout = os.Stdout
+					tshark.Stderr = os.Stderr
+					err := tshark.Run()
+					if err != nil {
+						log.Fatalf("goshark failed with %s\n", err)
+					}
+				}
+			} else {
+				var streamNumStr = *getStreamValue
+				var streamPCAP = basePath + "-tcp-s" + streamNumStr + ".pcap"
+				tshark, _ := exec.Command("tshark",
+					"-r", pcapPath,
+					"-Y", "tcp.stream=="+streamNumStr).Output()
+				if len(tshark) == 0 {
+					log.Println("Stream " + streamNumStr + " does not exist.")
+				} else {
+					log.Println("Processing stream "+streamNumStr, "to "+streamPCAP)
+					tsharkExtract := exec.Command("tshark",
+						"-r", pcapPath,
+						"-w", streamPCAP,
+						"-Y", "tcp.stream=="+streamNumStr)
+					tsharkExtract.Stdout = os.Stdout
+					tsharkExtract.Stderr = os.Stderr
+					err := tsharkExtract.Run()
+					if err != nil {
+						log.Fatalf("goshark failed with %s\n", err)
+					}
 				}
 			}
 		}
+		//if *getSingleTCPStream != nil {
+		//	var ext = filepath.Ext(pcapPath)
+		//	var name = pcapPath[0 : len(pcapPath)-len(ext)]
+		//	var basePath = filepath.Base(name)
+		//	var streamString = strconv.Itoa(*getSingleTCPStream)
+		//	var streamPCAP = basePath + "-tcp-s" + streamString + ".pcap"
+		//	tshark := exec.Command("tshark",
+		//		"-r", pcapPath,
+		//		"-w", streamPCAP,
+		//		"-Y", "tcp.stream==" + streamString)
+		//	tshark.Stdout = os.Stdout
+		//	tshark.Stderr = os.Stderr
+		//	err := tshark.Run()
+		//	if err != nil {
+		//		log.Fatalf("goshark failed with %s\n", err)
+		//	}
 	}
 }
