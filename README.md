@@ -1,5 +1,5 @@
 # goshark
-A Go based CLI application wrapper for tshark with a docker like CLI.
+A Go based CLI application wrapper that does stuff with PCAPs mostly with tshark and tcprewrite.
 
 ## GET URI(s)
 fetches uri from http requests.
