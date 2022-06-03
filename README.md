@@ -16,3 +16,4 @@ $ ./goshark get host pcaps/http.pcap
 0 www.ethereal.com
 1 pagead2.googlesyndication.com
 ```
+TEST
